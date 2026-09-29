@@ -1,0 +1,1361 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Scaffale">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)} img{max-width:100%}</style>
+<title>Scaffale Manga</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: sticky screentone header, library grid of 2:3 covers, series page with volume-grouped chapter list, full-screen dark reader with auto-hiding bars. Dark-first. */
+:root {
+  color-scheme: dark;
+  --bg: #0e1117;
+  --panel: #161b24;
+  --panel-2: #1e2431;
+  --line: #2a3140;
+  --fg: #e8ebf1;
+  --muted: #8d96a9;
+  --accent: #7390ff;
+  --accent-ink: #0a0f1f;
+  --ok: #4cc38a;
+  --danger: #ff6b6b;
+  --tone: rgba(255,255,255,.07);
+  --reader-bg: #07080b;
+  --reader-bar: rgba(14,17,23,.92);
+  --reader-fg: #e8ebf1;
+  --f-display: "Dela Gothic One", "Arial Black", Impact, sans-serif;
+  --f-body: "Figtree", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #f1f2f5; --panel: #ffffff; --panel-2: #e9ecf2; --line: #d9dde5;
+    --fg: #141821; --muted: #596275; --accent: #3350d4; --accent-ink: #ffffff;
+    --ok: #1d9a60; --danger: #cf3535; --tone: rgba(20,24,33,.08);
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f1f2f5; --panel: #ffffff; --panel-2: #e9ecf2; --line: #d9dde5;
+  --fg: #141821; --muted: #596275; --accent: #3350d4; --accent-ink: #ffffff;
+  --ok: #1d9a60; --danger: #cf3535; --tone: rgba(20,24,33,.08);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--f-body); font-size: 15px; line-height: 1.45;
+  -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+}
+body.reading { overflow: hidden; }
+body.reading #app { display: none; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; font-size: .86em; }
+
+/* ---------- header ---------- */
+.topbar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  background:
+    radial-gradient(var(--tone) 1px, transparent 1.3px) 0 0 / 6px 6px,
+    var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-in {
+  max-width: 1180px; margin: 0 auto; padding: 10px 20px;
+  display: flex; align-items: center; gap: 14px;
+}
+.brand {
+  display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 0;
+  font-family: var(--f-display); font-size: 20px; letter-spacing: .01em; white-space: nowrap;
+}
+.brand-mark {
+  width: 30px; height: 30px; border-radius: 7px; background: var(--accent); color: var(--accent-ink);
+  display: grid; place-items: center; font-size: 17px;
+}
+.search {
+  flex: 1; min-width: 0; max-width: 420px; margin-left: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 999px;
+  padding: 8px 14px; outline: none;
+}
+.search:focus { border-color: var(--accent); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: 1px solid var(--line); background: var(--panel-2); border-radius: 999px;
+  padding: 9px 16px; font-weight: 600; white-space: nowrap;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; }
+.btn.danger { color: var(--danger); }
+.btn.danger.solid { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn.sm { padding: 6px 12px; font-size: 13px; }
+.btn svg { width: 17px; height: 17px; flex: none; }
+
+/* ---------- page wrap ---------- */
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 22px 60px; }
+.section { display: grid; gap: 14px; margin-bottom: 34px; }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.h2 {
+  font-family: var(--f-display); font-weight: 400; font-size: 17px; letter-spacing: .02em; margin: 0;
+  display: flex; align-items: center; gap: 10px;
+}
+.h2::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--accent); }
+.count { color: var(--muted); font-size: 13px; }
+
+/* continue reading */
+.cont-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+.cont {
+  display: grid; grid-template-columns: 64px 1fr; gap: 14px; align-items: center; text-align: left;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 10px;
+}
+.cont:hover { border-color: var(--accent); }
+.cont img, .cont .ph { width: 64px; aspect-ratio: 2/3; object-fit: cover; border-radius: 6px; display: block; }
+.cont-body { min-width: 0; display: grid; gap: 3px; }
+.cont-title { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cont-sub { color: var(--muted); font-size: 13px; }
+.bar { height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 6px; }
+.bar > i { display: block; height: 100%; background: var(--accent); }
+
+/* library grid */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 22px 16px; }
+.card { display: grid; gap: 8px; text-align: left; background: none; border: 0; padding: 0; min-width: 0; }
+.cover {
+  position: relative; aspect-ratio: 2/3; border-radius: 8px; overflow: hidden;
+  background: radial-gradient(var(--tone) 1px, transparent 1.3px) 0 0 / 6px 6px, var(--panel-2);
+  border: 1px solid var(--line);
+}
+.cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .25s ease; }
+.card:hover .cover img { transform: scale(1.03); }
+.badge {
+  position: absolute; top: 8px; left: 8px; background: var(--accent); color: var(--accent-ink);
+  font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 5px; letter-spacing: .03em;
+}
+.card-title { font-weight: 700; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.card-sub { color: var(--muted); font-size: 13px; margin-top: -4px; }
+
+/* recent list */
+.recent { display: grid; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.recent button {
+  display: grid; grid-template-columns: 38px 1fr auto; gap: 12px; align-items: center; text-align: left;
+  padding: 9px 14px; background: none; border: 0; border-top: 1px solid var(--line);
+}
+.recent button:first-child { border-top: 0; }
+.recent button:hover { background: var(--panel-2); }
+.recent img, .recent .ph { width: 38px; aspect-ratio: 2/3; object-fit: cover; border-radius: 4px; display: block; }
+.recent .t { min-width: 0; }
+.recent .t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recent .t span { color: var(--muted); font-size: 13px; }
+.recent .d { color: var(--muted); font-size: 13px; }
+.ph { background: radial-gradient(var(--tone) 1px, transparent 1.3px) 0 0 / 5px 5px, var(--panel-2); }
+
+/* empty state */
+.empty {
+  border: 2px dashed var(--line); border-radius: 16px; padding: 44px 24px; text-align: center;
+  display: grid; justify-items: center; gap: 14px;
+  background: radial-gradient(var(--tone) 1px, transparent 1.3px) 0 0 / 7px 7px;
+}
+.empty.drag, body.drag .empty { border-color: var(--accent); }
+.empty h1 { font-family: var(--f-display); font-weight: 400; font-size: clamp(24px, 4vw, 34px); margin: 0; text-wrap: balance; }
+.empty p { margin: 0; color: var(--muted); max-width: 52ch; }
+.formats { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; width: 100%; max-width: 640px; text-align: left; margin-top: 6px; }
+.fmt { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: grid; gap: 6px; }
+.fmt b { font-size: 14px; }
+.fmt pre { margin: 0; font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); white-space: pre-wrap; word-break: break-all; line-height: 1.55; }
+
+.foot { color: var(--muted); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 6px 16px; border-top: 1px solid var(--line); padding-top: 16px; }
+
+/* ---------- series page ---------- */
+.back { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; color: var(--muted); padding: 4px 0; margin-bottom: 14px; font-weight: 600; }
+.back:hover { color: var(--fg); }
+.hero { display: grid; grid-template-columns: 200px 1fr; gap: 28px; margin-bottom: 30px; }
+.hero .cover { width: 200px; }
+.hero-body { min-width: 0; display: grid; gap: 14px; align-content: start; }
+.hero h1 { font-family: var(--f-display); font-weight: 400; font-size: clamp(28px, 5vw, 44px); line-height: 1.05; margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; font-size: 13px; color: var(--muted); }
+.chip b { color: var(--fg); font-weight: 600; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.inline-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.inline-form input { flex: 1; min-width: 180px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+.confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--danger); border-radius: var(--r); padding: 10px 14px; }
+.confirm span { flex: 1; min-width: 180px; }
+
+.vol { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.vol + .vol { margin-top: 12px; }
+.vol summary {
+  list-style: none; display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer;
+  font-weight: 700; background: var(--panel-2);
+}
+.vol summary::-webkit-details-marker { display: none; }
+.vol summary .chev { margin-left: auto; transition: transform .2s; color: var(--muted); }
+.vol[open] summary .chev { transform: rotate(180deg); }
+.vol summary .count { font-weight: 500; }
+.ch { display: grid; grid-template-columns: 14px 1fr auto auto; gap: 12px; align-items: center; padding: 11px 16px; border-top: 1px solid var(--line); }
+.ch-main { min-width: 0; background: none; border: 0; padding: 0; text-align: left; display: grid; gap: 1px; }
+.ch-main b { font-weight: 600; }
+.ch-main span { color: var(--muted); font-size: 13px; }
+.ch:hover { background: color-mix(in srgb, var(--panel-2) 60%, transparent); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.dot.prog { background: transparent; border: 2px solid var(--accent); }
+.dot.done { background: var(--line); }
+.ch.is-done .ch-main b { color: var(--muted); }
+.ch-state { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.ch-state.prog { color: var(--accent); }
+.icon-btn { background: none; border: 0; padding: 6px; border-radius: 6px; color: var(--muted); display: grid; place-items: center; }
+.icon-btn:hover { background: var(--panel-2); color: var(--fg); }
+.icon-btn svg { width: 18px; height: 18px; }
+.ch-menu { display: flex; gap: 2px; }
+.ch-confirm { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ch-confirm span { flex: 1; min-width: 160px; font-size: 14px; }
+
+/* ---------- import sheet ---------- */
+.sheet-back { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.5); display: grid; place-items: end center; padding: 16px; }
+.sheet {
+  width: min(560px, 100%); max-height: 80%; overflow: auto; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 16px; padding: 18px; display: grid; gap: 12px; margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+.sheet h3 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 18px; }
+.job { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); }
+.job-name { font-weight: 600; overflow-wrap: anywhere; font-size: 14px; }
+.job-status { font-size: 13px; color: var(--muted); }
+.job-status.err { color: var(--danger); }
+.job-status.ok { color: var(--ok); }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: 14px;
+  z-index: 80; max-width: calc(100% - 32px); text-align: center;
+}
+.warn { background: color-mix(in srgb, var(--danger) 14%, var(--panel)); border: 1px solid var(--danger); border-radius: var(--r); padding: 10px 14px; margin-bottom: 18px; font-size: 14px; }
+
+/* ---------- reader ---------- */
+.reader { position: fixed; inset: 0; z-index: 50; background: var(--reader-bg); color: var(--reader-fg); color-scheme: dark; }
+.r-body { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.r-bar {
+  position: absolute; left: 0; right: 0; z-index: 3; background: var(--reader-bar);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  display: flex; align-items: center; gap: 8px; padding-inline: 12px;
+  transition: transform .22s ease, opacity .22s ease;
+}
+.r-top { top: 0; padding-top: calc(8px + env(safe-area-inset-top, 0px)); padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.r-bottom { bottom: 0; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); padding-top: 8px; border-top: 1px solid rgba(255,255,255,.08); }
+.reader.ui-off .r-top { transform: translateY(-100%); opacity: 0; pointer-events: none; }
+.reader.ui-off .r-bottom { transform: translateY(100%); opacity: 0; pointer-events: none; }
+.reader.ui-off .r-settings { display: none; }
+.r-title { min-width: 0; flex: 1; display: grid; line-height: 1.2; }
+.r-title b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+.r-title span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: #8d96a9; }
+.r-sel {
+  background: #1e2431; border: 1px solid #2a3140; border-radius: 8px; padding: 7px 8px; max-width: 150px; color: #e8ebf1;
+}
+.r-btn { background: #1e2431; border: 1px solid #2a3140; border-radius: 8px; padding: 7px 10px; color: #e8ebf1; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; white-space: nowrap; }
+.r-btn:disabled { opacity: .35; cursor: default; }
+.r-btn svg { width: 17px; height: 17px; }
+.r-range { flex: 1; min-width: 60px; accent-color: #7390ff; }
+.r-count { font-family: var(--f-mono); font-size: 12.5px; color: #c8cdd8; white-space: nowrap; min-width: 80px; text-align: center; }
+
+.r-list { display: grid; justify-items: center; padding-top: calc(62px + env(safe-area-inset-top, 0px)); padding-bottom: 20px; }
+.r-list.gap { gap: 6px; }
+.pg { width: 100%; max-width: 1000px; background: #111319; position: relative; }
+.pg img { width: 100%; height: 100%; display: block; object-fit: contain; }
+.pg::before { content: attr(data-n); position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--f-mono); color: #3a4152; font-size: 13px; z-index: 0; }
+.pg img { position: relative; z-index: 1; }
+.pg img:not([src]) { visibility: hidden; }
+
+.stage { min-height: 100%; display: flex; align-items: center; justify-content: center; }
+.stage img { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.spread { display: flex; align-items: stretch; }
+.spread.rtl { flex-direction: row-reverse; }
+.spread > .pg { width: auto; max-width: none; min-width: 0; }
+.r-list > .spread { margin-inline: auto; }
+.endcard { width: 100%; max-width: 560px; padding: 48px 20px 120px; text-align: center; display: grid; gap: 14px; justify-items: center; margin: 0 auto; }
+.stage .endcard { padding-bottom: 48px; }
+.endcard .eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #8d96a9; }
+.endcard h2 { font-family: var(--f-display); font-weight: 400; margin: 0; font-size: 26px; text-wrap: balance; }
+.endcard .row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.endcard .btn { background: #1e2431; border-color: #2a3140; color: #e8ebf1; }
+.endcard .btn.primary { background: #7390ff; color: #0a0f1f; border-color: #7390ff; }
+
+.r-settings {
+  position: absolute; z-index: 4; right: 12px; bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  width: min(360px, calc(100% - 24px)); background: #161b24; border: 1px solid #2a3140; border-radius: 14px;
+  padding: 16px; display: grid; gap: 14px; box-shadow: 0 20px 50px rgba(0,0,0,.5);
+}
+.set { display: grid; gap: 6px; }
+.set label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #8d96a9; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: #0e1117; border: 1px solid #2a3140; border-radius: 9px; padding: 3px; gap: 3px; }
+.seg button { background: none; border: 0; border-radius: 7px; padding: 7px 6px; font-size: 13px; font-weight: 600; color: #aab2c3; }
+.seg button[aria-pressed="true"] { background: #7390ff; color: #0a0f1f; }
+.set.off { opacity: .4; pointer-events: none; }
+.hint { font-size: 12.5px; color: #8d96a9; margin: 0; }
+
+.r-hint {
+  position: absolute; inset: 0; z-index: 2; display: grid; grid-template-columns: 1fr 1fr 1fr; pointer-events: none;
+  animation: fadeout 2.6s ease forwards;
+}
+.r-hint div { display: grid; place-items: center; font-weight: 700; font-size: 14px; color: #fff; background: rgba(115,144,255,.16); border-inline: 1px dashed rgba(255,255,255,.2); }
+.r-hint div:nth-child(2) { background: rgba(255,255,255,.04); }
+@keyframes fadeout { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .r-bar, .cover img { transition: none; }
+  .r-hint { animation-duration: .01s; animation-delay: 2.5s; }
+}
+
+@media (max-width: 640px) {
+  .topbar-in { padding: 10px 16px; gap: 10px; }
+  .brand-name { display: none; }
+  .wrap { padding-inline: 16px; }
+  .btn .lbl { display: none; }
+  .hero { grid-template-columns: 1fr; gap: 18px; }
+  .hero .cover { width: 150px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 18px 12px; }
+  .r-sel { max-width: 110px; }
+  .r-btn .lbl { display: none; }
+  .r-title span { display: none; }
+}
+</style>
+</head>
+<body>
+
+
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-in">
+      <button class="brand" id="brand" type="button" aria-label="Torna alla libreria">
+        <span class="brand-mark">漫</span><span class="brand-name">Scaffale Manga</span>
+      </button>
+      <input class="search" id="search" type="search" placeholder="Cerca nella libreria" autocomplete="off">
+      <button class="btn primary" id="btn-import" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <span class="lbl">Carica zip</span>
+      </button>
+    </div>
+  </header>
+  <main class="wrap" id="view-home"></main>
+  <main class="wrap" id="view-series" hidden></main>
+</div>
+
+<section class="reader" id="reader" hidden>
+  <div class="r-body" id="r-body"></div>
+  <div class="r-bar r-top">
+    <button class="r-btn" id="r-close" type="button" aria-label="Chiudi lettore">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="r-title"><b id="r-series"></b><span id="r-chlabel"></span></div>
+    <select class="r-sel" id="r-chsel" aria-label="Capitolo"></select>
+    <select class="r-sel" id="r-pgsel" aria-label="Pagina"></select>
+  </div>
+  <div class="r-bar r-bottom">
+    <button class="r-btn" id="r-prev" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+      <span class="lbl">Cap. prec.</span>
+    </button>
+    <input class="r-range" id="r-range" type="range" min="1" max="1" value="1" aria-label="Scorri pagine">
+    <span class="r-count" id="r-count">1 / 1</span>
+    <button class="r-btn" id="r-settings-btn" type="button" aria-label="Impostazioni lettura">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+    </button>
+    <button class="r-btn" id="r-next" type="button">
+      <span class="lbl">Cap. succ.</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg>
+    </button>
+  </div>
+  <div class="r-settings" id="r-settings" hidden>
+    <div class="set"><label>Modalità di lettura</label>
+      <div class="seg" data-pref="mode"><button type="button" data-v="list">Lista verticale</button><button type="button" data-v="page">Pagina singola</button></div>
+    </div>
+    <div class="set" data-only="page"><label>Verso di lettura</label>
+      <div class="seg" data-pref="dir"><button type="button" data-v="rtl">Giapponese ←</button><button type="button" data-v="ltr">Occidentale →</button></div>
+    </div>
+    <div class="set" data-only="page"><label>Adatta pagina</label>
+      <div class="seg" data-pref="fit"><button type="button" data-v="height">Allo schermo</button><button type="button" data-v="width">In larghezza</button></div>
+    </div>
+    <div class="set"><label>Doppia pagina in orizzontale</label>
+      <div class="seg" data-pref="double"><button type="button" data-v="1">Sì</button><button type="button" data-v="0">No</button></div>
+    </div>
+    <div class="set" data-only="double"><label>Prima pagina da sola</label>
+      <div class="seg" data-pref="cover"><button type="button" data-v="1">Sì</button><button type="button" data-v="0">No</button></div>
+    </div>
+    <div class="set" data-only="list"><label>Spazio tra le pagine</label>
+      <div class="seg" data-pref="gap"><button type="button" data-v="1">Sì</button><button type="button" data-v="0">No</button></div>
+    </div>
+    <p class="hint">In modalità pagina: tocca i lati per sfogliare, il centro per mostrare o nascondere i comandi. Puoi anche fare swipe. Se le coppie di pagine non combaciano, cambia “Prima pagina da sola”.</p>
+  </div>
+</section>
+
+<input type="file" id="file-input" accept=".zip,.cbz,application/zip,application/x-zip-compressed,application/vnd.comicbook+zip" multiple hidden>
+<div id="sheet-root"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="jszip.min.js"></script>
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const collator = new Intl.Collator("it", { numeric: true, sensitivity: "base" });
+const IMG_RE = /\.(png|jpe?g|webp|gif|avif|bmp)$/i;
+const MIME = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif", avif: "image/avif", bmp: "image/bmp" };
+const CH_RE = /(?:capitolo|chapter|chap|cap|ch|episodio|ep)\.?[\s._-]*(\d+(?:[.,]\d+)?)/i;
+const VOL_RE = /(?:volume|vol|tomo)\.?[\s._-]*(\d+)/i;
+const ICON = {
+  dots: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  chev: '<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
+  back: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l12-7z"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'
+};
+
+/* ---------------- preferences ---------------- */
+const prefs = Object.assign({ mode: "list", dir: "rtl", fit: "height", gap: "1", double: "1", cover: "1", sort: "asc", hinted: false }, (() => {
+  try { return JSON.parse(localStorage.getItem("scaffale-prefs") || "{}"); } catch { return {}; }
+})());
+function savePrefs() { try { localStorage.setItem("scaffale-prefs", JSON.stringify(prefs)); } catch {} }
+
+/* ---------------- database ---------------- */
+const DB = (() => {
+  let db = null, mem = null;
+  const KEYS = { series: "id", chapters: "id", progress: "chapterId" };
+  const req = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  const done = t => new Promise((res, rej) => { t.oncomplete = () => res(); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error("abort")); });
+  function open() {
+    return new Promise(res => {
+      try {
+        const rq = indexedDB.open("scaffale-manga", 1);
+        rq.onupgradeneeded = () => {
+          const d = rq.result;
+          d.createObjectStore("series", { keyPath: "id" });
+          d.createObjectStore("chapters", { keyPath: "id" }).createIndex("seriesId", "seriesId");
+          d.createObjectStore("pages");
+          d.createObjectStore("progress", { keyPath: "chapterId" });
+        };
+        rq.onsuccess = () => { db = rq.result; res(true); };
+        rq.onerror = () => res(false);
+        rq.onblocked = () => res(false);
+      } catch { res(false); }
+    }).then(ok => {
+      if (!ok) mem = { series: new Map(), chapters: new Map(), pages: new Map(), progress: new Map() };
+      return ok;
+    });
+  }
+  const store = (s, mode = "readonly") => db.transaction(s, mode).objectStore(s);
+  return {
+    open,
+    get persistent() { return !mem; },
+    async get(s, k) { if (mem) return mem[s].get(k); return req(store(s).get(k)); },
+    async all(s) { if (mem) return [...mem[s].values()]; return req(store(s).getAll()); },
+    async bySeries(id) {
+      if (mem) return [...mem.chapters.values()].filter(c => c.seriesId === id);
+      return req(store("chapters").index("seriesId").getAll(id));
+    },
+    async put(s, v) {
+      if (mem) { mem[s].set(v[KEYS[s]], v); return; }
+      const t = db.transaction(s, "readwrite"); t.objectStore(s).put(v); await done(t);
+    },
+    async putPages(list) {
+      if (mem) { for (const [k, v] of list) mem.pages.set(k, v); return; }
+      const t = db.transaction("pages", "readwrite"); const st = t.objectStore("pages");
+      for (const [k, v] of list) st.put(v, k);
+      await done(t);
+    },
+    async del(s, k) {
+      if (mem) { mem[s].delete(k); return; }
+      const t = db.transaction(s, "readwrite"); t.objectStore(s).delete(k); await done(t);
+    },
+    async delPages(chId) {
+      const lo = chId + "#", hi = chId + "#￿";
+      if (mem) { for (const k of [...mem.pages.keys()]) if (k >= lo && k <= hi) mem.pages.delete(k); return; }
+      const t = db.transaction("pages", "readwrite"); t.objectStore("pages").delete(IDBKeyRange.bound(lo, hi)); await done(t);
+    }
+  };
+})();
+const pageKey = (chId, i) => chId + "#" + String(i).padStart(4, "0");
+
+/* ---------------- helpers ---------------- */
+const pad2 = n => (n == null ? "" : Number.isInteger(n) ? String(n).padStart(2, "0") : String(n));
+const chLabel = c => c.number != null ? `Capitolo ${pad2(c.number)}` : (c.volume != null ? `Volume ${pad2(c.volume)}` : (c.title || "Capitolo"));
+const chShort = c => c.number != null ? `Cap. ${pad2(c.number)}` : (c.volume != null ? `Vol. ${pad2(c.volume)}` : (c.title || "Cap."));
+const normKey = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "senza-titolo";
+const ext = n => (n.split(".").pop() || "").toLowerCase();
+const base = n => n.split("/").pop();
+function sortChapters(list) {
+  return list.slice().sort((a, b) => {
+    const an = a.number ?? Infinity, bn = b.number ?? Infinity;
+    if (an !== bn) return an - bn;
+    const av = a.volume ?? Infinity, bv = b.volume ?? Infinity;
+    if (av !== bv) return av - bv;
+    return collator.compare(a.title || "", b.title || "");
+  });
+}
+function relDate(ts) {
+  const d = new Date(ts), now = new Date();
+  const day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 864e5);
+  if (diff === 0) return "oggi";
+  if (diff === 1) return "ieri";
+  if (diff < 7) return `${diff} giorni fa`;
+  return d.toLocaleDateString("it-IT", { day: "numeric", month: "short", year: d.getFullYear() === now.getFullYear() ? undefined : "numeric" });
+}
+const fmtBytes = b => b > 1e9 ? (b / 1e9).toFixed(2) + " GB" : Math.round(b / 1e6) + " MB";
+let toastT;
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 3200);
+}
+
+/* Cover URLs, memoised per series version */
+const coverCache = new Map();
+function coverUrl(s) {
+  if (!s.cover) return null;
+  const key = s.id + ":" + s.updatedAt;
+  const hit = coverCache.get(s.id);
+  if (hit && hit.key === key) return hit.url;
+  if (hit) URL.revokeObjectURL(hit.url);
+  const url = URL.createObjectURL(new Blob([s.cover.b], { type: s.cover.t }));
+  coverCache.set(s.id, { key, url });
+  return url;
+}
+const coverImg = (s, cls = "") => {
+  const u = coverUrl(s);
+  return u ? `<img class="${cls}" src="${u}" alt="" loading="lazy">` : `<div class="ph ${cls}"></div>`;
+};
+
+/* ---------------- filename parsing ---------------- */
+function parseChapterNum(s) {
+  const m = s.match(CH_RE);
+  if (m) return parseFloat(m[1].replace(",", "."));
+  if (/^\d+(?:[.,]\d+)?$/.test(s.trim())) return parseFloat(s.trim().replace(",", "."));
+  return null;
+}
+function parseArchiveName(name) {
+  let b = base(name).replace(/\.(zip|cbz)$/i, "");
+  b = b.replace(/__[A-Za-z0-9]{3,12}_$/, "").replace(/\s*\(\d+\)$/, "");
+  const parts = b.split(/_-_|\s+-\s+/).map(p => p.replace(/_/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean);
+  let series = null, volume = null, chapter = null;
+  for (const p of parts) {
+    const v = p.match(new RegExp("^" + VOL_RE.source, "i"));
+    if (v) { volume = +v[1]; continue; }
+    const c = p.match(new RegExp("^" + CH_RE.source, "i"));
+    if (c) { chapter = parseFloat(c[1].replace(",", ".")); continue; }
+    if (!series) series = p;
+  }
+  if (parts.length === 1) {
+    const s = parts[0];
+    const at = s.search(/\b(vol(ume)?|tomo|cap(itolo)?|ch(apter)?)\.?\s*\d/i);
+    if (at > 0) {
+      series = s.slice(0, at).replace(/[\s._-]+$/, "").trim();
+      const rest = s.slice(at);
+      const v = rest.match(VOL_RE); if (v) volume = +v[1];
+      const c = rest.match(CH_RE); if (c) chapter = parseFloat(c[1].replace(",", "."));
+    }
+  }
+  return { series, volume, chapter };
+}
+
+/* ---------------- image size sniffing ---------------- */
+function sniffSize(ab) {
+  const u = new Uint8Array(ab), dv = new DataView(ab);
+  if (u.length > 24 && u[0] === 0x89 && u[1] === 0x50) return [dv.getUint32(16), dv.getUint32(20)];
+  if (u[0] === 0xff && u[1] === 0xd8) {
+    let i = 2;
+    while (i + 9 < u.length) {
+      if (u[i] !== 0xff) { i++; continue; }
+      const m = u[i + 1];
+      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return [dv.getUint16(i + 7), dv.getUint16(i + 5)];
+      if (m === 0xd8 || m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; }
+      i += 2 + dv.getUint16(i + 2);
+    }
+  }
+  if (u.length > 30 && u[8] === 0x57 && u[9] === 0x45 && u[10] === 0x42 && u[11] === 0x50) {
+    const fmt = String.fromCharCode(u[12], u[13], u[14], u[15]);
+    if (fmt === "VP8X") return [1 + (u[24] | u[25] << 8 | u[26] << 16), 1 + (u[27] | u[28] << 8 | u[29] << 16)];
+    if (fmt === "VP8 ") return [dv.getUint16(26, true) & 0x3fff, dv.getUint16(28, true) & 0x3fff];
+    if (fmt === "VP8L") { const b = dv.getUint32(21, true); return [1 + (b & 0x3fff), 1 + ((b >> 14) & 0x3fff)]; }
+  }
+  return null;
+}
+function loadImg(blob) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(blob), img = new Image();
+    img.onload = () => res({ img, url });
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("immagine non leggibile")); };
+    img.src = url;
+  });
+}
+async function decodeSize(ab, type) {
+  try { const { img, url } = await loadImg(new Blob([ab], { type })); URL.revokeObjectURL(url); return [img.naturalWidth, img.naturalHeight]; }
+  catch { return [700, 1000]; }
+}
+async function makeThumb(ab, type) {
+  try {
+    const { img, url } = await loadImg(new Blob([ab], { type }));
+    const w = 360, h = Math.round(w * img.naturalHeight / img.naturalWidth);
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    c.getContext("2d").drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+    const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.82));
+    return { b: await blob.arrayBuffer(), t: "image/jpeg" };
+  } catch { return { b: ab, t: type }; }
+}
+
+/* ---------------- import ---------------- */
+async function ensureSeries(title) {
+  const id = normKey(title);
+  let s = await DB.get("series", id);
+  if (!s) { s = { id, title, cover: null, coverNum: null, createdAt: Date.now(), updatedAt: Date.now(), lastRead: null }; await DB.put("series", s); }
+  return s;
+}
+async function importZip(zip, name, job, parent) {
+  const meta = parseArchiveName(name);
+  if (parent) { meta.series = meta.series || parent.series; if (meta.volume == null) meta.volume = parent.volume; }
+  const groups = new Map(), nested = [];
+  zip.forEach((path, entry) => {
+    if (entry.dir || /(^|\/)(__MACOSX|\.)/.test(path)) return;
+    if (/\.(zip|cbz)$/i.test(path)) { nested.push(entry); return; }
+    if (!IMG_RE.test(path)) return;
+    const i = path.lastIndexOf("/"), dir = i < 0 ? "" : path.slice(0, i);
+    if (!groups.has(dir)) groups.set(dir, []);
+    groups.get(dir).push(entry);
+  });
+  for (const e of nested) {
+    const inner = await JSZip.loadAsync(await e.async("arraybuffer"));
+    await importZip(inner, base(e.name), job, meta);
+  }
+  if (!groups.size) { if (!nested.length) throw new Error("Nello zip non ci sono immagini."); return; }
+  job.total += [...groups.values()].reduce((n, g) => n + g.length, 0);
+  const series = await ensureSeries(meta.series || "Senza titolo");
+  const dirs = [...groups.keys()].sort(collator.compare);
+  for (const dir of dirs) {
+    const leaf = base(dir);
+    let number = leaf ? parseChapterNum(leaf) : null;
+    if (number == null && dirs.length === 1) number = meta.chapter;
+    const vm = dir.match(VOL_RE);
+    const volume = vm ? +vm[1] : meta.volume;
+    const entries = groups.get(dir).sort((a, b) => collator.compare(base(a.name), base(b.name)));
+    const title = number == null && volume == null ? (leaf || (meta.series ? base(name).replace(/\.(zip|cbz)$/i, "") : "Capitolo")) : null;
+    await storeChapter(series, { number, volume, title, source: name + (dir ? "/" + dir : "") }, entries, job);
+  }
+}
+async function storeChapter(series, info, entries, job) {
+  const id = series.id + "/" + (info.number != null ? "c" + info.number : "x" + normKey(info.source));
+  const existing = await DB.get("chapters", id);
+  if (existing) { await DB.delPages(id); await DB.del("progress", id); }
+  const dims = []; let batch = [], first = null;
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    const ab = await e.async("arraybuffer");
+    const type = MIME[ext(e.name)] || "image/jpeg";
+    dims.push(sniffSize(ab) || await decodeSize(ab, type));
+    if (i === 0) first = { ab, type };
+    batch.push([pageKey(id, i), { b: ab, t: type }]);
+    if (batch.length >= 6) { await DB.putPages(batch); batch = []; }
+    job.done++; job.render();
+  }
+  if (batch.length) await DB.putPages(batch);
+  const ch = { id, seriesId: series.id, number: info.number, volume: info.volume, title: info.title, pages: entries.length, dims, addedAt: Date.now(), source: info.source };
+  await DB.put("chapters", ch);
+  const fresh = await DB.get("series", series.id);
+  const better = !fresh.cover || (info.number != null && (fresh.coverNum == null || info.number < fresh.coverNum));
+  if (better && first) { fresh.cover = await makeThumb(first.ab, first.type); fresh.coverNum = info.number; }
+  fresh.updatedAt = Date.now();
+  await DB.put("series", fresh);
+  job.log.push(`${existing ? "Aggiornato" : "Aggiunto"}: ${fresh.title} · ${chLabel(ch)}`);
+  job.lastSeries = fresh.id;
+}
+
+let importing = false;
+async function runImport(files) {
+  if (!files.length || importing) return;
+  if (typeof JSZip === "undefined") { toast("La libreria zip non si è caricata. Ricarica la pagina."); return; }
+  importing = true;
+  try { navigator.storage?.persist?.(); } catch {}
+  const jobs = [...files].map(f => ({ file: f, total: 0, done: 0, state: "wait", log: [], err: null, render: () => {} }));
+  const root = $("#sheet-root");
+  root.innerHTML = `<div class="sheet-back"><div class="sheet" role="dialog" aria-label="Importazione">
+    <h3>Importazione</h3><div id="jobs"></div>
+    <div class="actions" style="justify-content:flex-end"><button class="btn" id="sheet-close" type="button" disabled>Attendi…</button></div></div></div>`;
+  const box = $("#jobs");
+  jobs.forEach((j, n) => {
+    const el = document.createElement("div"); el.className = "job";
+    box.append(el);
+    let raf = 0;
+    j.render = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const pct = j.total ? Math.round(j.done / j.total * 100) : 0;
+        const st = j.state === "wait" ? "In coda" : j.state === "read" ? "Apro lo zip…" : j.state === "work" ? `Estraggo pagine · ${j.done}/${j.total}` :
+          j.state === "err" ? j.err : j.log.join(" · ");
+        el.innerHTML = `<div class="job-name">${esc(j.file.name)}</div>
+          <div class="bar"><i style="width:${j.state === "ok" ? 100 : pct}%"></i></div>
+          <div class="job-status ${j.state === "err" ? "err" : j.state === "ok" ? "ok" : ""}">${esc(st)}</div>`;
+      });
+    };
+    j.render();
+  });
+  let lastSeries = null, okCount = 0;
+  for (const j of jobs) {
+    try {
+      j.state = "read"; j.render();
+      const zip = await JSZip.loadAsync(j.file);
+      j.state = "work"; j.render();
+      await importZip(zip, j.file.name, j, null);
+      j.state = "ok"; okCount++; lastSeries = j.lastSeries || lastSeries;
+    } catch (e) {
+      j.state = "err";
+      j.err = /quota/i.test(e?.name + e?.message) ? "Spazio esaurito sul dispositivo. Elimina qualche capitolo e riprova." :
+        "Non riesco a leggere questo file: " + (e?.message || e);
+    }
+    j.render();
+  }
+  importing = false;
+  const btn = $("#sheet-close"); btn.disabled = false; btn.textContent = "Fatto";
+  btn.className = "btn primary";
+  btn.onclick = () => { root.innerHTML = ""; };
+  $(".sheet-back").onclick = e => { if (e.target.classList.contains("sheet-back")) root.innerHTML = ""; };
+  if (okCount) {
+    if (current.view === "series" && current.seriesId) renderSeries(current.seriesId);
+    else if (lastSeries) renderSeries(lastSeries); else renderHome();
+  }
+}
+
+/* ---------------- views ---------------- */
+const current = { view: "home", seriesId: null, homeScroll: 0 };
+function showView(v) {
+  current.view = v;
+  $("#view-home").hidden = v !== "home";
+  $("#view-series").hidden = v !== "series";
+}
+
+async function loadLibrary() {
+  const [series, chapters, progress] = await Promise.all([DB.all("series"), DB.all("chapters"), DB.all("progress")]);
+  const prog = new Map(progress.map(p => [p.chapterId, p]));
+  const bySeries = new Map();
+  for (const c of chapters) { if (!bySeries.has(c.seriesId)) bySeries.set(c.seriesId, []); bySeries.get(c.seriesId).push(c); }
+  for (const [k, v] of bySeries) bySeries.set(k, sortChapters(v));
+  return { series, chapters, prog, bySeries };
+}
+
+function continueTarget(s, lib) {
+  if (!s.lastRead) return null;
+  const list = lib.bySeries.get(s.id) || [];
+  const i = list.findIndex(c => c.id === s.lastRead.chapterId);
+  if (i < 0) return null;
+  const c = list[i], p = lib.prog.get(c.id);
+  if (p && p.done) {
+    const next = list[i + 1];
+    if (next) return { ch: next, page: 0, text: `Prossimo: ${chLabel(next)}`, pct: 0 };
+    return { ch: c, page: 0, text: `${chLabel(c)} · finito`, pct: 100 };
+  }
+  const page = p ? p.page : 0;
+  return { ch: c, page, text: `${chLabel(c)} · pag. ${page + 1}/${c.pages}`, pct: Math.round((page + 1) / c.pages * 100) };
+}
+
+async function renderHome() {
+  showView("home");
+  const lib = await loadLibrary();
+  const q = normKey($("#search").value || "");
+  const filter = s => !$("#search").value.trim() || normKey(s.title).includes(q);
+  const series = lib.series.filter(s => (lib.bySeries.get(s.id) || []).length).filter(filter);
+  const el = $("#view-home");
+  let html = "";
+  if (!DB.persistent) html += `<div class="warn">Questo browser non permette di salvare dati per questa pagina (forse sei in navigazione privata). Puoi leggere, ma la libreria sparirà quando chiudi la scheda.</div>`;
+
+  if (!lib.series.length) {
+    html += `<div class="empty" id="drop">
+      <h1>La tua libreria è vuota</h1>
+      <p>Carica gli zip delle scan dall'app File. Il nome del file diventa titolo, volume e capitolo, e le pagine restano salvate su questo iPad.</p>
+      <button class="btn primary" type="button" data-act="import">${ICON.plus}<span>Carica zip</span></button>
+      <div class="formats">
+        <div class="fmt"><b>Volume intero</b><pre>Blue_Lock_-_Volume_01.zip
+ ├ capitolo-01-…/1.png …
+ ├ capitolo-02-…/1.png …
+ └ capitolo-04-…/</pre></div>
+        <div class="fmt"><b>Capitolo singolo</b><pre>Blue_Lock_-_Volume_01_-_Capitolo_01.zip
+ ├ 1.png
+ ├ 2.png
+ └ …</pre></div>
+      </div>
+    </div>`;
+    el.innerHTML = html;
+    return;
+  }
+
+  const conts = lib.series.filter(s => s.lastRead).sort((a, b) => b.lastRead.at - a.lastRead.at)
+    .map(s => ({ s, t: continueTarget(s, lib) })).filter(x => x.t && filter(x.s)).slice(0, 6);
+  if (conts.length) {
+    html += `<section class="section"><div class="section-head"><h2 class="h2">Continua a leggere</h2></div><div class="cont-row">` +
+      conts.map(({ s, t }) => `<button class="cont" type="button" data-read="${esc(t.ch.id)}" data-page="${t.page}">
+        ${coverImg(s)}<div class="cont-body"><div class="cont-title">${esc(s.title)}</div><div class="cont-sub">${esc(t.text)}</div>
+        <div class="bar"><i style="width:${t.pct}%"></i></div></div></button>`).join("") + `</div></section>`;
+  }
+
+  html += `<section class="section"><div class="section-head"><h2 class="h2">Libreria</h2><span class="count">${series.length} ${series.length === 1 ? "serie" : "serie"}</span></div>`;
+  if (!series.length) html += `<p class="count">Nessuna serie corrisponde a “${esc($("#search").value)}”.</p>`;
+  html += `<div class="grid">` + series.sort((a, b) => collator.compare(a.title, b.title)).map(s => {
+    const chs = lib.bySeries.get(s.id) || [];
+    const unread = chs.filter(c => !lib.prog.get(c.id)?.done).length;
+    const vols = new Set(chs.map(c => c.volume).filter(v => v != null)).size;
+    return `<button class="card" type="button" data-series="${esc(s.id)}">
+      <div class="cover">${coverImg(s)}${unread && unread < chs.length ? `<span class="badge">${unread} DA LEGGERE</span>` : ""}</div>
+      <div class="card-title">${esc(s.title)}</div>
+      <div class="card-sub">${chs.length} ${chs.length === 1 ? "capitolo" : "capitoli"}${vols ? ` · ${vols} vol.` : ""}</div></button>`;
+  }).join("") + `</div></section>`;
+
+  const recent = lib.chapters.slice().sort((a, b) => b.addedAt - a.addedAt).filter(c => {
+    const s = lib.series.find(x => x.id === c.seriesId); return s && filter(s);
+  }).slice(0, 8);
+  if (recent.length) {
+    const sMap = new Map(lib.series.map(s => [s.id, s]));
+    html += `<section class="section"><div class="section-head"><h2 class="h2">Ultimi capitoli aggiunti</h2></div><div class="recent">` +
+      recent.map(c => { const s = sMap.get(c.seriesId); const p = lib.prog.get(c.id);
+        return `<button type="button" data-read="${esc(c.id)}" data-page="${p && !p.done ? p.page : 0}">${coverImg(s)}
+          <div class="t"><b>${esc(s.title)}</b><span>${esc(chLabel(c))}${c.volume != null && c.number != null ? ` · Vol. ${pad2(c.volume)}` : ""} · ${c.pages} pagine${p?.done ? " · letto" : ""}</span></div>
+          <span class="d">${relDate(c.addedAt)}</span></button>`; }).join("") + `</div></section>`;
+  }
+
+  html += `<div class="foot" id="foot"><span>${lib.chapters.length} capitoli · ${lib.chapters.reduce((n, c) => n + c.pages, 0)} pagine</span></div>`;
+  el.innerHTML = html;
+  fillStorage();
+}
+async function fillStorage() {
+  try {
+    const est = await navigator.storage?.estimate?.();
+    const persisted = await navigator.storage?.persisted?.();
+    const f = $("#foot"); if (!f || !est) return;
+    f.insertAdjacentHTML("beforeend", `<span>Spazio usato ${fmtBytes(est.usage || 0)}</span>` +
+      (persisted === false ? `<span>Safari può liberare lo spazio se il dispositivo è pieno</span>` : persisted ? `<span>Archiviazione persistente attiva</span>` : ""));
+  } catch {}
+}
+
+async function renderSeries(id, keepScroll) {
+  const s = await DB.get("series", id);
+  if (!s) return renderHome();
+  if (current.view === "home") current.homeScroll = window.scrollY;
+  showView("series"); current.seriesId = id;
+  const lib = await loadLibrary();
+  const chs = lib.bySeries.get(id) || [];
+  if (!chs.length) { await deleteSeries(id); return renderHome(); }
+  const pages = chs.reduce((n, c) => n + c.pages, 0);
+  const read = chs.filter(c => lib.prog.get(c.id)?.done).length;
+  const vols = new Set(chs.map(c => c.volume).filter(v => v != null));
+  const t = continueTarget(s, lib);
+  const main = t ? `<button class="btn primary" type="button" data-read="${esc(t.ch.id)}" data-page="${t.page}">${ICON.play}<span>Continua · ${esc(t.text)}</span></button>`
+    : `<button class="btn primary" type="button" data-read="${esc(chs[0].id)}" data-page="0">${ICON.play}<span>Inizia a leggere</span></button>`;
+
+  const groups = new Map();
+  for (const c of chs) { const k = c.volume ?? "none"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); }
+  let keys = [...groups.keys()].sort((a, b) => (a === "none" ? 1e9 : a) - (b === "none" ? 1e9 : b));
+  const desc = prefs.sort === "desc";
+  if (desc) keys = keys.reverse();
+
+  const row = c => {
+    const p = lib.prog.get(c.id);
+    const cls = p?.done ? "done" : p ? "prog" : "";
+    const state = p?.done ? "Letto" : p ? `pag. ${p.page + 1}/${c.pages}` : "";
+    return `<div class="ch ${p?.done ? "is-done" : ""}" data-ch="${esc(c.id)}">
+      <span class="dot ${cls}" aria-hidden="true"></span>
+      <button class="ch-main" type="button" data-read="${esc(c.id)}" data-page="${p && !p.done ? p.page : 0}">
+        <b>${esc(chLabel(c))}</b><span>${c.pages} pagine · aggiunto ${relDate(c.addedAt)}</span></button>
+      <span class="ch-state ${cls}">${state}</span>
+      <div class="ch-menu">
+        <button class="icon-btn" type="button" data-toggle-read="${esc(c.id)}" title="${p?.done ? "Segna come da leggere" : "Segna come letto"}" aria-label="${p?.done ? "Segna come da leggere" : "Segna come letto"}">${p?.done ? ICON.undo : ICON.check}</button>
+        <button class="icon-btn" type="button" data-del-ch="${esc(c.id)}" title="Elimina capitolo" aria-label="Elimina capitolo">${ICON.trash}</button>
+      </div></div>`;
+  };
+
+  let openVols = {};
+  try { openVols = JSON.parse(sessionStorage.getItem("vols-" + id) || "{}"); } catch {}
+  const volHtml = keys.map(k => {
+    const list = desc ? groups.get(k).slice().reverse() : groups.get(k);
+    const r = list.filter(c => lib.prog.get(c.id)?.done).length;
+    const isOpen = openVols[k] !== false;
+    return `<details class="vol" data-vol="${k}" ${isOpen ? "open" : ""}><summary>${k === "none" ? "Senza volume" : `Volume ${pad2(k)}`}
+      <span class="count">${list.length} cap.${r ? ` · ${r} letti` : ""}</span>${ICON.chev}</summary>${list.map(row).join("")}</details>`;
+  }).join("");
+
+  $("#view-series").innerHTML = `
+    <button class="back" type="button" data-act="home">${ICON.back}Libreria</button>
+    <div class="hero">
+      <div class="cover">${coverImg(s)}</div>
+      <div class="hero-body">
+        <h1 id="s-title">${esc(s.title)}</h1>
+        <div class="chips">
+          <span class="chip"><b>${chs.length}</b> ${chs.length === 1 ? "capitolo" : "capitoli"}</span>
+          ${vols.size ? `<span class="chip"><b>${vols.size}</b> ${vols.size === 1 ? "volume" : "volumi"}</span>` : ""}
+          <span class="chip"><b>${pages}</b> pagine</span>
+          <span class="chip">Letti <b>${read}/${chs.length}</b></span>
+        </div>
+        <div class="bar" style="max-width:360px"><i style="width:${Math.round(read / chs.length * 100)}%"></i></div>
+        <div class="actions">${main}
+          <button class="btn" type="button" data-act="import">${ICON.plus}<span>Aggiungi capitoli</span></button>
+          <button class="btn ghost" type="button" data-act="rename">Rinomina</button>
+          <button class="btn ghost danger" type="button" data-act="del-series">Elimina serie</button>
+        </div>
+        <div id="s-extra"></div>
+      </div>
+    </div>
+    <section class="section">
+      <div class="section-head"><h2 class="h2">Capitoli</h2>
+        <button class="btn sm" type="button" data-act="sort">${desc ? "Dal più recente" : "Dal primo"}</button></div>
+      <div>${volHtml}</div>
+    </section>`;
+  $("#view-series").querySelectorAll("details.vol").forEach(d => d.addEventListener("toggle", () => {
+    openVols[d.dataset.vol] = d.open;
+    try { sessionStorage.setItem("vols-" + id, JSON.stringify(openVols)); } catch {}
+  }));
+  if (!keepScroll) window.scrollTo(0, 0);
+}
+
+async function deleteChapter(id) {
+  await DB.delPages(id); await DB.del("progress", id); await DB.del("chapters", id);
+}
+async function deleteSeries(id) {
+  for (const c of await DB.bySeries(id)) await deleteChapter(c.id);
+  await DB.del("series", id);
+  const hit = coverCache.get(id); if (hit) { URL.revokeObjectURL(hit.url); coverCache.delete(id); }
+}
+async function refreshCover(id) {
+  const s = await DB.get("series", id); if (!s) return;
+  const chs = sortChapters(await DB.bySeries(id));
+  if (!chs.length) return;
+  const pg = await DB.get("pages", pageKey(chs[0].id, 0));
+  if (pg) { s.cover = await makeThumb(pg.b, pg.t); s.coverNum = chs[0].number; s.updatedAt = Date.now(); await DB.put("series", s); }
+}
+
+/* ---------------- global clicks ---------------- */
+document.addEventListener("click", async e => {
+  const t = e.target.closest("button, [data-act]");
+  if (!t || t.closest("#reader")) return;
+  if (t.dataset.read) { openReader(t.dataset.read, +t.dataset.page || 0, current.view); return; }
+  if (t.dataset.series) { renderSeries(t.dataset.series); return; }
+  if (t.dataset.toggleRead) {
+    const id = t.dataset.toggleRead, c = await DB.get("chapters", id), p = await DB.get("progress", id);
+    if (p?.done) await DB.del("progress", id);
+    else {
+      await DB.put("progress", { chapterId: id, page: c.pages - 1, total: c.pages, done: true, at: Date.now() });
+      const s = await DB.get("series", c.seriesId);
+      if (!s.lastRead || s.lastRead.at < Date.now()) { s.lastRead = { chapterId: id, at: Date.now() }; await DB.put("series", s); }
+    }
+    renderSeries(current.seriesId, true); return;
+  }
+  if (t.dataset.delCh) {
+    const row = t.closest(".ch");
+    if (row.querySelector(".ch-confirm")) return;
+    const c = await DB.get("chapters", t.dataset.delCh);
+    row.insertAdjacentHTML("beforeend", `<div class="ch-confirm"><span>Eliminare ${esc(chLabel(c))} e le sue ${c.pages} pagine?</span>
+      <button class="btn sm danger solid" type="button" data-del-ch-yes="${esc(c.id)}">Elimina</button>
+      <button class="btn sm" type="button" data-act="cancel-row">Annulla</button></div>`);
+    return;
+  }
+  if (t.dataset.delChYes) {
+    const c = await DB.get("chapters", t.dataset.delChYes);
+    await deleteChapter(c.id);
+    const s = await DB.get("series", c.seriesId);
+    if (s && s.coverNum === c.number) await refreshCover(s.id);
+    toast(`${chLabel(c)} eliminato`);
+    renderSeries(c.seriesId, true); return;
+  }
+  const act = t.dataset.act;
+  if (!act) return;
+  if (act === "import") $("#file-input").click();
+  else if (act === "home") { await renderHome(); window.scrollTo(0, current.homeScroll || 0); }
+  else if (act === "cancel-row") t.closest(".ch-confirm").remove();
+  else if (act === "sort") { prefs.sort = prefs.sort === "desc" ? "asc" : "desc"; savePrefs(); renderSeries(current.seriesId, true); }
+  else if (act === "rename") {
+    const s = await DB.get("series", current.seriesId);
+    $("#s-extra").innerHTML = `<form class="inline-form" id="rename-form"><input id="rename-input" value="${esc(s.title)}" aria-label="Nuovo titolo">
+      <button class="btn primary sm" type="submit">Salva</button><button class="btn sm" type="button" data-act="close-extra">Annulla</button></form>`;
+    $("#rename-input").focus(); $("#rename-input").select();
+  }
+  else if (act === "close-extra") $("#s-extra").innerHTML = "";
+  else if (act === "del-series") {
+    const n = (await DB.bySeries(current.seriesId)).length;
+    $("#s-extra").innerHTML = `<div class="confirm"><span>Eliminare la serie e tutti i suoi ${n} capitoli da questo dispositivo?</span>
+      <button class="btn sm danger solid" type="button" data-act="del-series-yes">Elimina tutto</button>
+      <button class="btn sm" type="button" data-act="close-extra">Annulla</button></div>`;
+  }
+  else if (act === "del-series-yes") { await deleteSeries(current.seriesId); toast("Serie eliminata"); renderHome(); }
+});
+document.addEventListener("submit", async e => {
+  if (e.target.id !== "rename-form") return;
+  e.preventDefault();
+  const title = $("#rename-input").value.trim(); if (!title) return;
+  const s = await DB.get("series", current.seriesId); s.title = title; await DB.put("series", s);
+  renderSeries(s.id, true);
+});
+$("#btn-import").onclick = () => $("#file-input").click();
+$("#brand").onclick = () => { renderHome(); window.scrollTo(0, 0); };
+$("#file-input").onchange = e => { const f = [...e.target.files]; e.target.value = ""; runImport(f); };
+let searchT; $("#search").addEventListener("input", () => { clearTimeout(searchT); searchT = setTimeout(() => renderHome(), 150); });
+["dragenter", "dragover"].forEach(ev => document.addEventListener(ev, e => { if (e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); document.body.classList.add("drag"); } }));
+["dragleave", "drop"].forEach(ev => document.addEventListener(ev, e => { if (ev === "dragleave" && e.relatedTarget) return; document.body.classList.remove("drag"); }));
+document.addEventListener("drop", e => { if (!e.dataTransfer?.files?.length) return; e.preventDefault(); if (!$("#reader").hidden) return; runImport([...e.dataTransfer.files].filter(f => /\.(zip|cbz)$/i.test(f.name))); });
+
+/* ---------------- reader ---------------- */
+let R = null;
+const rb = $("#r-body"), reader = $("#reader");
+
+async function openReader(chId, startPage, from) {
+  const ch = await DB.get("chapters", chId); if (!ch) return;
+  const series = await DB.get("series", ch.seriesId);
+  const chapters = sortChapters(await DB.bySeries(ch.seriesId));
+  if (R) closeCleanup();
+  if (current.view === "home") current.homeScroll = window.scrollY;
+  R = { ch, series, chapters, idx: chapters.findIndex(c => c.id === ch.id), page: Math.min(startPage || 0, ch.pages - 1),
+        urls: new Map(), loading: new Map(), from: R?.from || from || "series", observer: null, frames: [], saveT: 0, lastScroll: 0 };
+  document.body.classList.add("reading");
+  reader.hidden = false; reader.classList.remove("ui-off");
+  $("#r-settings").hidden = true;
+  $("#r-series").textContent = series.title;
+  $("#r-chlabel").textContent = chLabel(ch) + (ch.volume != null && ch.number != null ? ` · Volume ${pad2(ch.volume)}` : "");
+  $("#r-chsel").innerHTML = chapters.map(c => `<option value="${esc(c.id)}" ${c.id === ch.id ? "selected" : ""}>${esc(chShort(c))}</option>`).join("");
+  $("#r-pgsel").innerHTML = Array.from({ length: ch.pages }, (_, i) => `<option value="${i}">Pag. ${i + 1}</option>`).join("");
+  $("#r-range").max = ch.pages;
+  $("#r-prev").disabled = R.idx <= 0;
+  $("#r-next").disabled = R.idx >= chapters.length - 1;
+  syncSettings();
+  build();
+  wakeLock();
+}
+function closeCleanup() {
+  if (!R) return;
+  R.observer?.disconnect();
+  for (const u of R.urls.values()) URL.revokeObjectURL(u);
+  clearTimeout(R.saveT);
+  return flushProgress();
+}
+async function closeReader() {
+  const from = R?.from, sid = R?.series.id;
+  const saving = closeCleanup(); R = null;
+  try { await saving; } catch {}
+  rb.innerHTML = ""; reader.hidden = true; document.body.classList.remove("reading");
+  releaseWake();
+  if (from === "home") { await renderHome(); window.scrollTo(0, current.homeScroll || 0); }
+  else await renderSeries(sid);
+}
+
+async function pageUrl(i) {
+  if (!R) return null;
+  if (R.urls.has(i)) return R.urls.get(i);
+  if (R.loading.has(i)) return R.loading.get(i);
+  const r = R, p = DB.get("pages", pageKey(r.ch.id, i)).then(v => {
+    r.loading.delete(i);
+    if (!v || r !== R) return null;
+    const u = URL.createObjectURL(new Blob([v.b], { type: v.t }));
+    r.urls.set(i, u); return u;
+  });
+  R.loading.set(i, p);
+  return p;
+}
+function dropUrl(i) { const u = R.urls.get(i); if (u) { URL.revokeObjectURL(u); R.urls.delete(i); } }
+
+function isDouble() {
+  return prefs.double === "1" && window.innerWidth > window.innerHeight && window.innerWidth >= 700;
+}
+const aspect = i => { const d = R.ch.dims[i]; return d && d[0] && d[1] ? d[0] / d[1] : 0.7; };
+function computeSpreads() {
+  const n = R.ch.pages;
+  if (!R.double) return Array.from({ length: n }, (_, i) => [i]);
+  const wide = i => aspect(i) > 1.05, out = [];
+  let i = 0;
+  if (prefs.cover === "1" && n) { out.push([0]); i = 1; }
+  while (i < n) {
+    if (wide(i) || i + 1 >= n || wide(i + 1)) { out.push([i]); i++; }
+    else { out.push([i, i + 1]); i += 2; }
+  }
+  return out;
+}
+function makeFrame(i) {
+  const f = document.createElement("div"); f.className = "pg"; f.dataset.i = i; f.dataset.n = i + 1;
+  const d = R.ch.dims[i];
+  f.style.aspectRatio = `${d?.[0] || 7} / ${d?.[1] || 10}`;
+  f.style.flex = `${aspect(i)} 1 0`;
+  const img = document.createElement("img"); img.alt = `Pagina ${i + 1}`; img.decoding = "async"; img.draggable = false;
+  f.append(img);
+  return f;
+}
+function build() {
+  rb.innerHTML = ""; rb.scrollTop = 0;
+  R.observer?.disconnect(); R.observer = null;
+  for (const i of [...R.urls.keys()]) dropUrl(i);
+  reader.dataset.mode = prefs.mode;
+  R.double = isDouble();
+  R.spreads = computeSpreads();
+  R.spreadOf = [];
+  R.spreads.forEach((sp, k) => sp.forEach(i => (R.spreadOf[i] = k)));
+  syncSettings();
+  if (prefs.mode === "list") buildList(); else buildPage();
+}
+
+function endCardHtml() {
+  const next = R.chapters[R.idx + 1];
+  return `<div class="endcard"><div class="eyebrow">Fine ${esc(chLabel(R.ch))}</div>
+    <h2>${next ? esc(chLabel(next)) + (next.volume != null && next.volume !== R.ch.volume ? ` · Volume ${pad2(next.volume)}` : "") : "Sei in pari con la serie"}</h2>
+    <div class="row">${next ? `<button class="btn primary" type="button" data-r="next">Leggi il prossimo</button>` : ""}
+    <button class="btn" type="button" data-r="close">Torna alla serie</button></div></div>`;
+}
+
+/* list mode */
+function buildList() {
+  const list = document.createElement("div");
+  list.className = "r-list" + (prefs.gap === "1" ? " gap" : "");
+  R.frames = [];
+  for (const sp of R.spreads) {
+    if (!R.double) { const f = makeFrame(sp[0]); R.frames[sp[0]] = f; list.append(f); continue; }
+    const row = document.createElement("div");
+    row.className = "spread" + (prefs.dir === "rtl" ? " rtl" : "");
+    row.style.width = sp.length === 1 && aspect(sp[0]) < 1 ? "min(50%, 700px)" : "min(100%, 1400px)";
+    for (const i of sp) { const f = makeFrame(i); R.frames[i] = f; row.append(f); }
+    list.append(row);
+  }
+  list.insertAdjacentHTML("beforeend", endCardHtml());
+  rb.append(list);
+  const r = R;
+  R.observer = new IntersectionObserver(entries => {
+    if (r !== R) return;
+    for (const en of entries) {
+      const i = +en.target.dataset.i, img = en.target.firstChild;
+      if (en.isIntersecting) {
+        if (img.getAttribute("src")) continue;
+        pageUrl(i).then(u => { if (u && r === R && R.urls.has(i)) img.src = u; });
+      } else if (img.getAttribute("src")) { img.removeAttribute("src"); dropUrl(i); }
+    }
+  }, { root: rb, rootMargin: "250% 0px" });
+  R.frames.forEach(f => R.observer.observe(f));
+  requestAnimationFrame(() => { if (R && R.page > 0) rb.scrollTop = R.frames[R.page].offsetTop - 4; updateUi(); });
+}
+function currentListPage() {
+  const y = rb.scrollTop + rb.clientHeight * 0.35, fr = R.frames;
+  let lo = 0, hi = fr.length - 1;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (fr[m].offsetTop <= y) lo = m; else hi = m - 1; }
+  return lo;
+}
+let scrollRaf = 0;
+rb.addEventListener("scroll", () => {
+  if (!R || prefs.mode !== "list" || scrollRaf) return;
+  scrollRaf = requestAnimationFrame(() => {
+    scrollRaf = 0; if (!R || !R.frames?.length) return;
+    const top = rb.scrollTop;
+    if (top - R.lastScroll > 60 && top > 120) { reader.classList.add("ui-off"); $("#r-settings").hidden = true; }
+    if (Math.abs(top - R.lastScroll) > 60) R.lastScroll = top;
+    const atEnd = top + rb.clientHeight >= rb.scrollHeight - 40;
+    if (atEnd) reader.classList.remove("ui-off");
+    const p = atEnd ? R.ch.pages - 1 : currentListPage();
+    if (p !== R.page) { R.page = p; updateUi(); saveProgress(); }
+    else if (atEnd) saveProgress();
+  });
+}, { passive: true });
+
+/* page mode */
+function buildPage() {
+  const st = document.createElement("div");
+  st.className = "stage";
+  rb.append(st);
+  R.stage = st;
+  showSpread(R.spreadOf[R.page] ?? 0);
+  if (!prefs.hinted) {
+    const h = document.createElement("div"); h.className = "r-hint";
+    const l = prefs.dir === "rtl" ? "Avanti" : "Indietro", r2 = prefs.dir === "rtl" ? "Indietro" : "Avanti";
+    h.innerHTML = `<div>${l}</div><div>Comandi</div><div>${r2}</div>`;
+    reader.append(h); setTimeout(() => h.remove(), 2700);
+    prefs.hinted = true; savePrefs();
+  }
+}
+function sizeSpread(el, sp) {
+  const sum = sp.reduce((n, i) => n + aspect(i), 0);
+  if (prefs.fit === "height") {
+    el.style.width = Math.floor(Math.min(rb.clientWidth, rb.clientHeight * sum)) + "px";
+  } else {
+    el.style.width = "100%";
+    el.style.maxWidth = R.double ? "none" : "1000px";
+  }
+}
+function showSpread(k) {
+  if (!R) return;
+  const n = R.spreads.length, st = R.stage;
+  k = Math.max(0, Math.min(n, k));
+  R.sp = k; R.atEnd = k === n;
+  if (R.atEnd) {
+    R.page = R.ch.pages - 1;
+    st.innerHTML = endCardHtml();
+  } else {
+    const sp = R.spreads[k], r = R;
+    R.page = sp[sp.length - 1];
+    const wrap = document.createElement("div");
+    wrap.className = "spread" + (prefs.dir === "rtl" ? " rtl" : "");
+    sizeSpread(wrap, sp);
+    for (const i of sp) {
+      const f = makeFrame(i), img = f.firstChild;
+      const u = R.urls.get(i);
+      if (u) img.src = u;
+      else pageUrl(i).then(u2 => { if (u2 && r === R && R.sp === k) img.src = u2; });
+      wrap.append(f);
+    }
+    st.replaceChildren(wrap);
+    const keep = new Set();
+    for (const kk of [k - 1, k, k + 1, k + 2]) (R.spreads[kk] || []).forEach(i => keep.add(i));
+    for (const i of keep) if (!sp.includes(i)) pageUrl(i).then(u2 => { if (u2) { const pre = new Image(); pre.src = u2; } });
+    for (const i of [...R.urls.keys()]) if (!keep.has(i)) dropUrl(i);
+  }
+  rb.scrollTop = 0;
+  updateUi(); saveProgress();
+}
+function step(d) {
+  if (!R) return;
+  if (R.atEnd && d > 0) { goChapter(1); return; }
+  if (R.sp + d < 0) { if (R.idx > 0) goChapter(-1, true); return; }
+  showSpread(R.sp + d);
+}
+function goChapter(d, fromEnd) {
+  const c = R.chapters[R.idx + d]; if (!c) { if (d > 0) closeReader(); return; }
+  openReader(c.id, fromEnd ? c.pages - 1 : 0);
+}
+
+let resizeT;
+window.addEventListener("resize", () => {
+  if (!R) return;
+  clearTimeout(resizeT);
+  resizeT = setTimeout(() => {
+    if (!R) return;
+    if (isDouble() !== R.double) build();
+    else if (prefs.mode === "page" && !R.atEnd) { const w = R.stage.firstChild; if (w) sizeSpread(w, R.spreads[R.sp]); }
+  }, 200);
+});
+
+let touch = null, suppressClick = 0;
+rb.addEventListener("touchstart", e => { if (e.touches.length === 1) touch = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() }; else touch = null; }, { passive: true });
+rb.addEventListener("touchend", e => {
+  if (!R || prefs.mode !== "page" || !touch) return;
+  const dx = e.changedTouches[0].clientX - touch.x, dy = e.changedTouches[0].clientY - touch.y;
+  const zoomed = (window.visualViewport?.scale || 1) > 1.02;
+  if (!zoomed && Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.6 && Date.now() - touch.t < 700) {
+    suppressClick = Date.now();
+    const forward = prefs.dir === "rtl" ? dx > 0 : dx < 0;
+    step(forward ? 1 : -1);
+  }
+  touch = null;
+}, { passive: true });
+
+rb.addEventListener("click", e => {
+  if (!R) return;
+  const b = e.target.closest("[data-r]");
+  if (b) { if (b.dataset.r === "next") goChapter(1); else closeReader(); return; }
+  if (Date.now() - suppressClick < 400) return;
+  if (!$("#r-settings").hidden) { $("#r-settings").hidden = true; return; }
+  if (prefs.mode === "list") { reader.classList.toggle("ui-off"); return; }
+  if (R.atEnd) return;
+  const x = e.clientX / rb.clientWidth;
+  if (x < 0.33) step(prefs.dir === "rtl" ? 1 : -1);
+  else if (x > 0.67) step(prefs.dir === "rtl" ? -1 : 1);
+  else reader.classList.toggle("ui-off");
+});
+
+function updateUi() {
+  if (!R) return;
+  const sp = prefs.mode === "page" && !R.atEnd && R.spreads ? R.spreads[R.sp] : [R.page];
+  const a = sp[0], z = sp[sp.length - 1];
+  $("#r-pgsel").value = String(a);
+  $("#r-range").value = a + 1;
+  $("#r-count").textContent = a === z ? `${a + 1} / ${R.ch.pages}` : `${a + 1}–${z + 1} / ${R.ch.pages}`;
+}
+$("#r-range").addEventListener("input", e => { $("#r-count").textContent = `${e.target.value} / ${R.ch.pages}`; });
+$("#r-range").addEventListener("change", e => jump(+e.target.value - 1));
+$("#r-pgsel").addEventListener("change", e => jump(+e.target.value));
+function jump(i) {
+  if (!R) return;
+  if (prefs.mode === "list") { rb.scrollTop = R.frames[i].offsetTop - 4; R.page = i; updateUi(); saveProgress(); }
+  else showSpread(R.spreadOf[i]);
+}
+$("#r-chsel").addEventListener("change", e => openReader(e.target.value, 0));
+$("#r-prev").onclick = () => goChapter(-1);
+$("#r-next").onclick = () => goChapter(1);
+$("#r-close").onclick = () => closeReader();
+$("#r-settings-btn").onclick = e => { e.stopPropagation(); $("#r-settings").hidden = !$("#r-settings").hidden; };
+
+function syncSettings() {
+  document.querySelectorAll("#r-settings .seg").forEach(seg => {
+    seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(prefs[seg.dataset.pref] === b.dataset.v)));
+  });
+  document.querySelectorAll("#r-settings [data-only]").forEach(s => {
+    const o = s.dataset.only;
+    s.classList.toggle("off", o === "double" ? prefs.double !== "1" : o !== prefs.mode);
+  });
+}
+$("#r-settings").addEventListener("click", e => {
+  const b = e.target.closest(".seg button"); if (!b || !R) return;
+  const key = b.parentElement.dataset.pref;
+  if (prefs[key] === b.dataset.v) return;
+  prefs[key] = b.dataset.v; savePrefs(); syncSettings();
+  if (["mode", "gap", "double", "cover"].includes(key)) build();
+  else if (key === "dir" && prefs.mode === "list" && R.double) build();
+  else if (prefs.mode === "page" && !R.atEnd) showSpread(R.sp);
+});
+
+document.addEventListener("keydown", e => {
+  if (!R || reader.hidden || /INPUT|SELECT/.test(document.activeElement?.tagName)) return;
+  if (e.key === "Escape") { if (!$("#r-settings").hidden) $("#r-settings").hidden = true; else closeReader(); return; }
+  if (prefs.mode !== "page") return;
+  const fwd = prefs.dir === "rtl" ? "ArrowLeft" : "ArrowRight", back = prefs.dir === "rtl" ? "ArrowRight" : "ArrowLeft";
+  if (e.key === fwd || e.key === " ") { e.preventDefault(); step(1); }
+  else if (e.key === back) { e.preventDefault(); step(-1); }
+});
+
+/* progress */
+function saveProgress() {
+  if (!R) return;
+  clearTimeout(R.saveT);
+  R.saveT = setTimeout(flushProgress, 500);
+}
+async function flushProgress() {
+  const r = R; if (!r) return;
+  try {
+    const prev = await DB.get("progress", r.ch.id);
+    const done = !!prev?.done || r.page >= r.ch.pages - 1;
+    await DB.put("progress", { chapterId: r.ch.id, page: r.page, total: r.ch.pages, done, at: Date.now() });
+    const s = await DB.get("series", r.series.id);
+    if (s) { s.lastRead = { chapterId: r.ch.id, at: Date.now() }; await DB.put("series", s); }
+  } catch {}
+}
+window.addEventListener("pagehide", () => { if (R) flushProgress(); });
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && R) flushProgress();
+  if (document.visibilityState === "visible" && R) wakeLock();
+});
+
+let wl = null;
+async function wakeLock() { try { wl = await navigator.wakeLock?.request("screen"); } catch { wl = null; } }
+function releaseWake() { try { wl?.release(); } catch {} wl = null; }
+
+/* ---------------- boot ---------------- */
+DB.open().then(() => renderHome());
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+}
+</script>
+</body>
+</html>
