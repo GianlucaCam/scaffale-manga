@@ -289,12 +289,23 @@ button { cursor: pointer; }
 }
 .carousel::-webkit-scrollbar { display: none; }
 .slide {
-  direction: ltr; flex: 0 0 100%; width: 100%; height: 100%;
-  scroll-snap-align: center; scroll-snap-stop: always;
-  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  flex: 0 0 100%; width: 100%; height: 100%;
+  scroll-snap-align: start; scroll-snap-stop: always;
+  display: flex; overflow: hidden;
 }
-.slide.fit-width { align-items: flex-start; overflow-y: auto; }
-.slide .endcard { padding-bottom: 48px; }
+.slide > .spread { width: 100%; height: 100%; }
+.slide .pg {
+  flex: 1 1 0; min-width: 0; height: 100%; max-width: none; width: auto;
+  display: flex; align-items: center; justify-content: center; background: none;
+}
+.slide .pg img { width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; }
+.slide .spread.two:not(.rtl) > .pg:first-child, .slide .spread.two.rtl > .pg:last-child { justify-content: flex-end; }
+.slide .spread.two:not(.rtl) > .pg:last-child, .slide .spread.two.rtl > .pg:first-child { justify-content: flex-start; }
+.slide.fit-width { overflow-y: auto; }
+.slide.fit-width > .spread { height: auto; align-items: flex-start; }
+.slide.fit-width .pg { height: auto; align-items: flex-start; }
+.slide.fit-width .pg img { width: 100%; max-height: none; }
+.slide .endcard { margin: auto; padding-bottom: 48px; }
 .slide img { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .spread { display: flex; align-items: stretch; }
 .spread.rtl { flex-direction: row-reverse; }
@@ -1038,7 +1049,7 @@ async function openReader(chId, startPage, from) {
   R = { ch, series, chapters, idx: chapters.findIndex(c => c.id === ch.id), page: Math.min(startPage || 0, ch.pages - 1),
         urls: new Map(), loading: new Map(), from: R?.from || from || "series", observer: null, frames: [], saveT: 0, lastScroll: 0 };
   document.body.classList.add("reading");
-  reader.hidden = false; reader.classList.remove("ui-off");
+  reader.hidden = false; reader.classList.add("ui-off");
   $("#r-settings").hidden = true;
   $("#r-series").textContent = series.title;
   $("#r-chlabel").textContent = chLabel(ch) + (ch.volume != null && ch.number != null ? ` · Volume ${pad2(ch.volume)}` : "");
@@ -1050,6 +1061,7 @@ async function openReader(chId, startPage, from) {
   syncSettings();
   build();
   wakeLock();
+  if (!prefs.hinted) { toast("Tocca il centro della pagina per i comandi"); prefs.hinted = true; savePrefs(); }
 }
 function closeCleanup() {
   if (!R) return;
@@ -1099,11 +1111,13 @@ function computeSpreads() {
   }
   return out;
 }
-function makeFrame(i) {
+function makeFrame(i, inSlide) {
   const f = document.createElement("div"); f.className = "pg"; f.dataset.i = i; f.dataset.n = i + 1;
   const d = R.ch.dims[i];
-  f.style.aspectRatio = `${d?.[0] || 7} / ${d?.[1] || 10}`;
-  f.style.flex = `${aspect(i)} 1 0`;
+  if (!inSlide) {
+    f.style.aspectRatio = `${d?.[0] || 7} / ${d?.[1] || 10}`;
+    f.style.flex = `${aspect(i)} 1 0`;
+  }
   const img = document.createElement("img"); img.alt = `Pagina ${i + 1}`; img.decoding = "async"; img.draggable = false;
   f.append(img);
   return f;
@@ -1175,7 +1189,6 @@ rb.addEventListener("scroll", () => {
     if (top - R.lastScroll > 60 && top > 120) { reader.classList.add("ui-off"); $("#r-settings").hidden = true; }
     if (Math.abs(top - R.lastScroll) > 60) R.lastScroll = top;
     const atEnd = top + rb.clientHeight >= rb.scrollHeight - 40;
-    if (atEnd) reader.classList.remove("ui-off");
     const p = atEnd ? R.ch.pages - 1 : currentListPage();
     if (p !== R.page) { R.page = p; updateUi(); saveProgress(); }
     else if (atEnd) saveProgress();
@@ -1187,17 +1200,19 @@ function buildPage() {
   rb.classList.add("paged");
   const car = document.createElement("div");
   car.className = "carousel";
-  car.dir = prefs.dir === "rtl" ? "rtl" : "ltr";
   R.slides = R.spreads.map((sp, k) => {
     const sl = document.createElement("div"); sl.className = "slide"; sl.dataset.k = k;
     const wrap = document.createElement("div");
-    wrap.className = "spread" + (prefs.dir === "rtl" ? " rtl" : "");
-    for (const i of sp) wrap.append(makeFrame(i));
-    sl.append(wrap); car.append(sl);
+    wrap.className = "spread " + (sp.length > 1 ? "two" : "one") + (prefs.dir === "rtl" ? " rtl" : "");
+    for (const i of sp) wrap.append(makeFrame(i, true));
+    sl.append(wrap);
     return sl;
   });
   const end = document.createElement("div"); end.className = "slide"; end.dataset.k = R.spreads.length;
-  end.innerHTML = endCardHtml(); car.append(end); R.slides.push(end);
+  end.innerHTML = endCardHtml(); R.slides.push(end);
+  // Japanese order: the first page sits at the right end, so the DOM order is reversed (scrolling stays LTR, which Safari handles reliably)
+  const order = prefs.dir === "rtl" ? R.slides.slice().reverse() : R.slides;
+  order.forEach(sl => car.append(sl));
   rb.append(car);
   R.car = car;
   sizeAll();
@@ -1208,31 +1223,16 @@ function buildPage() {
   }, { root: car, threshold: 0.6 });
   R.slides.forEach(sl => R.observer.observe(sl));
   const k = R.spreadOf[R.page] ?? 0;
-  goSlide(k, false);
-  setCurrent(k);
-}
-function sizeSpread(el, sp) {
-  const sum = sp.reduce((n, i) => n + aspect(i), 0);
-  if (prefs.fit === "height") {
-    el.style.width = Math.floor(Math.min(rb.clientWidth, rb.clientHeight * sum)) + "px";
-    el.style.maxWidth = "";
-  } else {
-    el.style.width = "100%";
-    el.style.maxWidth = R.double ? "none" : "1000px";
-  }
+  requestAnimationFrame(() => { if (r !== R) return; goSlide(k, false); setCurrent(k); });
 }
 function sizeAll() {
-  R.slides.forEach((sl, k) => {
-    sl.classList.toggle("fit-width", prefs.fit === "width");
-    if (k < R.spreads.length) sizeSpread(sl.firstChild, R.spreads[k]);
-  });
+  R.slides.forEach(sl => sl.classList.toggle("fit-width", prefs.fit === "width"));
 }
 function goSlide(k, smooth = true) {
-  const sl = R.slides[Math.max(0, Math.min(R.slides.length - 1, k))];
-  if (!sl) return;
-  const car = R.car, target = sl.offsetLeft - (car.clientWidth - sl.clientWidth) / 2;
-  // in RTL the slides overflow to the left: offsetLeft and scrollLeft are both negative, so they match directly
-  car.scrollTo({ left: target, behavior: smooth && !matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "auto" });
+  const L = R.slides.length;
+  k = Math.max(0, Math.min(L - 1, k));
+  const pos = prefs.dir === "rtl" ? L - 1 - k : k;
+  R.car.scrollTo({ left: pos * R.car.clientWidth, behavior: smooth && !matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "auto" });
 }
 function setCurrent(k) {
   if (!R || prefs.mode !== "page") return;
