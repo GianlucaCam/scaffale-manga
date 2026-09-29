@@ -281,14 +281,26 @@ button { cursor: pointer; }
 .pg img { position: relative; z-index: 1; }
 .pg img:not([src]) { visibility: hidden; }
 
-.stage { min-height: 100%; display: flex; align-items: center; justify-content: center; }
-.stage img { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.r-body.paged { overflow: hidden; }
+.carousel {
+  position: relative; height: 100%; display: flex; overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.carousel::-webkit-scrollbar { display: none; }
+.slide {
+  direction: ltr; flex: 0 0 100%; width: 100%; height: 100%;
+  scroll-snap-align: center; scroll-snap-stop: always;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.slide.fit-width { align-items: flex-start; overflow-y: auto; }
+.slide .endcard { padding-bottom: 48px; }
+.slide img { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .spread { display: flex; align-items: stretch; }
 .spread.rtl { flex-direction: row-reverse; }
 .spread > .pg { width: auto; max-width: none; min-width: 0; }
 .r-list > .spread { margin-inline: auto; }
 .endcard { width: 100%; max-width: 560px; padding: 48px 20px 120px; text-align: center; display: grid; gap: 14px; justify-items: center; margin: 0 auto; }
-.stage .endcard { padding-bottom: 48px; }
 .endcard .eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #8d96a9; }
 .endcard h2 { font-family: var(--f-display); font-weight: 400; margin: 0; font-size: 26px; text-wrap: balance; }
 .endcard .row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
@@ -381,7 +393,7 @@ button { cursor: pointer; }
   </div>
   <div class="r-settings" id="r-settings" hidden>
     <div class="set"><label>Modalità di lettura</label>
-      <div class="seg" data-pref="mode"><button type="button" data-v="list">Lista verticale</button><button type="button" data-v="page">Pagina singola</button></div>
+      <div class="seg" data-pref="mode"><button type="button" data-v="page">Sfoglia in orizzontale</button><button type="button" data-v="list">Lista verticale</button></div>
     </div>
     <div class="set" data-only="page"><label>Verso di lettura</label>
       <div class="seg" data-pref="dir"><button type="button" data-v="rtl">Giapponese ←</button><button type="button" data-v="ltr">Occidentale →</button></div>
@@ -398,7 +410,7 @@ button { cursor: pointer; }
     <div class="set" data-only="list"><label>Spazio tra le pagine</label>
       <div class="seg" data-pref="gap"><button type="button" data-v="1">Sì</button><button type="button" data-v="0">No</button></div>
     </div>
-    <p class="hint">In modalità pagina: tocca i lati per sfogliare, il centro per mostrare o nascondere i comandi. Puoi anche fare swipe. Se le coppie di pagine non combaciano, cambia “Prima pagina da sola”.</p>
+    <p class="hint">Scorri col dito a destra o a sinistra per girare pagina, come nelle Foto. Tocca il centro per mostrare o nascondere i comandi. Se le coppie di pagine non combaciano, cambia “Prima pagina da sola”.</p>
   </div>
 </section>
 
@@ -428,10 +440,10 @@ const ICON = {
 };
 
 /* ---------------- preferences ---------------- */
-const prefs = Object.assign({ mode: "list", dir: "rtl", fit: "height", gap: "1", double: "1", cover: "1", sort: "asc", hinted: false }, (() => {
-  try { return JSON.parse(localStorage.getItem("scaffale-prefs") || "{}"); } catch { return {}; }
+const prefs = Object.assign({ mode: "page", dir: "rtl", fit: "height", gap: "1", double: "1", cover: "1", sort: "asc", hinted: false }, (() => {
+  try { return JSON.parse(localStorage.getItem("scaffale-prefs-2") || "{}"); } catch { return {}; }
 })());
-function savePrefs() { try { localStorage.setItem("scaffale-prefs", JSON.stringify(prefs)); } catch {} }
+function savePrefs() { try { localStorage.setItem("scaffale-prefs-2", JSON.stringify(prefs)); } catch {} }
 
 /* ---------------- database ---------------- */
 const DB = (() => {
@@ -1101,6 +1113,8 @@ function build() {
   R.observer?.disconnect(); R.observer = null;
   for (const i of [...R.urls.keys()]) dropUrl(i);
   reader.dataset.mode = prefs.mode;
+  rb.classList.remove("paged");
+  R.car = null; R.slides = null; R.sp = -1; R.loadedAround = null;
   R.double = isDouble();
   R.spreads = computeSpreads();
   R.spreadOf = [];
@@ -1168,65 +1182,84 @@ rb.addEventListener("scroll", () => {
   });
 }, { passive: true });
 
-/* page mode */
+/* page mode: horizontal carousel, swipe like a photo gallery */
 function buildPage() {
-  const st = document.createElement("div");
-  st.className = "stage";
-  rb.append(st);
-  R.stage = st;
-  showSpread(R.spreadOf[R.page] ?? 0);
-  if (!prefs.hinted) {
-    const h = document.createElement("div"); h.className = "r-hint";
-    const l = prefs.dir === "rtl" ? "Avanti" : "Indietro", r2 = prefs.dir === "rtl" ? "Indietro" : "Avanti";
-    h.innerHTML = `<div>${l}</div><div>Comandi</div><div>${r2}</div>`;
-    reader.append(h); setTimeout(() => h.remove(), 2700);
-    prefs.hinted = true; savePrefs();
-  }
+  rb.classList.add("paged");
+  const car = document.createElement("div");
+  car.className = "carousel";
+  car.dir = prefs.dir === "rtl" ? "rtl" : "ltr";
+  R.slides = R.spreads.map((sp, k) => {
+    const sl = document.createElement("div"); sl.className = "slide"; sl.dataset.k = k;
+    const wrap = document.createElement("div");
+    wrap.className = "spread" + (prefs.dir === "rtl" ? " rtl" : "");
+    for (const i of sp) wrap.append(makeFrame(i));
+    sl.append(wrap); car.append(sl);
+    return sl;
+  });
+  const end = document.createElement("div"); end.className = "slide"; end.dataset.k = R.spreads.length;
+  end.innerHTML = endCardHtml(); car.append(end); R.slides.push(end);
+  rb.append(car);
+  R.car = car;
+  sizeAll();
+  const r = R;
+  R.observer = new IntersectionObserver(entries => {
+    if (r !== R) return;
+    for (const en of entries) if (en.isIntersecting) setCurrent(+en.target.dataset.k);
+  }, { root: car, threshold: 0.6 });
+  R.slides.forEach(sl => R.observer.observe(sl));
+  const k = R.spreadOf[R.page] ?? 0;
+  goSlide(k, false);
+  setCurrent(k);
 }
 function sizeSpread(el, sp) {
   const sum = sp.reduce((n, i) => n + aspect(i), 0);
   if (prefs.fit === "height") {
     el.style.width = Math.floor(Math.min(rb.clientWidth, rb.clientHeight * sum)) + "px";
+    el.style.maxWidth = "";
   } else {
     el.style.width = "100%";
     el.style.maxWidth = R.double ? "none" : "1000px";
   }
 }
-function showSpread(k) {
-  if (!R) return;
-  const n = R.spreads.length, st = R.stage;
-  k = Math.max(0, Math.min(n, k));
-  R.sp = k; R.atEnd = k === n;
-  if (R.atEnd) {
-    R.page = R.ch.pages - 1;
-    st.innerHTML = endCardHtml();
-  } else {
-    const sp = R.spreads[k], r = R;
-    R.page = sp[sp.length - 1];
-    const wrap = document.createElement("div");
-    wrap.className = "spread" + (prefs.dir === "rtl" ? " rtl" : "");
-    sizeSpread(wrap, sp);
-    for (const i of sp) {
-      const f = makeFrame(i), img = f.firstChild;
-      const u = R.urls.get(i);
-      if (u) img.src = u;
-      else pageUrl(i).then(u2 => { if (u2 && r === R && R.sp === k) img.src = u2; });
-      wrap.append(f);
-    }
-    st.replaceChildren(wrap);
-    const keep = new Set();
-    for (const kk of [k - 1, k, k + 1, k + 2]) (R.spreads[kk] || []).forEach(i => keep.add(i));
-    for (const i of keep) if (!sp.includes(i)) pageUrl(i).then(u2 => { if (u2) { const pre = new Image(); pre.src = u2; } });
-    for (const i of [...R.urls.keys()]) if (!keep.has(i)) dropUrl(i);
+function sizeAll() {
+  R.slides.forEach((sl, k) => {
+    sl.classList.toggle("fit-width", prefs.fit === "width");
+    if (k < R.spreads.length) sizeSpread(sl.firstChild, R.spreads[k]);
+  });
+}
+function goSlide(k, smooth = true) {
+  const sl = R.slides[Math.max(0, Math.min(R.slides.length - 1, k))];
+  if (!sl) return;
+  const car = R.car, target = sl.offsetLeft - (car.clientWidth - sl.clientWidth) / 2;
+  // in RTL the slides overflow to the left: offsetLeft and scrollLeft are both negative, so they match directly
+  car.scrollTo({ left: target, behavior: smooth && !matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "auto" });
+}
+function setCurrent(k) {
+  if (!R || prefs.mode !== "page") return;
+  const n = R.spreads.length;
+  if (k === R.sp && R.loadedAround === k) return;
+  R.sp = k; R.atEnd = k === n; R.loadedAround = k;
+  R.page = R.atEnd ? R.ch.pages - 1 : R.spreads[k][R.spreads[k].length - 1];
+  const keep = new Set();
+  for (let kk = k - 2; kk <= k + 3; kk++) (R.spreads[kk] || []).forEach(i => keep.add(i));
+  const r = R;
+  for (const i of keep) {
+    const img = R.slides[R.spreadOf[i]].querySelector(`.pg[data-i="${i}"] img`);
+    if (img.getAttribute("src")) continue;
+    pageUrl(i).then(u => { if (u && r === R && R.urls.has(i)) img.src = u; });
   }
-  rb.scrollTop = 0;
+  for (const i of [...R.urls.keys()]) if (!keep.has(i)) {
+    const img = R.slides[R.spreadOf[i]]?.querySelector(`.pg[data-i="${i}"] img`);
+    img?.removeAttribute("src"); dropUrl(i);
+  }
+  for (const sl of R.slides) if (sl.classList.contains("fit-width") && +sl.dataset.k !== k) sl.scrollTop = 0;
   updateUi(); saveProgress();
 }
 function step(d) {
   if (!R) return;
   if (R.atEnd && d > 0) { goChapter(1); return; }
   if (R.sp + d < 0) { if (R.idx > 0) goChapter(-1, true); return; }
-  showSpread(R.sp + d);
+  goSlide(R.sp + d);
 }
 function goChapter(d, fromEnd) {
   const c = R.chapters[R.idx + d]; if (!c) { if (d > 0) closeReader(); return; }
@@ -1240,35 +1273,25 @@ window.addEventListener("resize", () => {
   resizeT = setTimeout(() => {
     if (!R) return;
     if (isDouble() !== R.double) build();
-    else if (prefs.mode === "page" && !R.atEnd) { const w = R.stage.firstChild; if (w) sizeSpread(w, R.spreads[R.sp]); }
+    else if (prefs.mode === "page") { const k = R.sp; sizeAll(); goSlide(k, false); }
   }, 200);
 });
 
-let touch = null, suppressClick = 0;
-rb.addEventListener("touchstart", e => { if (e.touches.length === 1) touch = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() }; else touch = null; }, { passive: true });
-rb.addEventListener("touchend", e => {
-  if (!R || prefs.mode !== "page" || !touch) return;
-  const dx = e.changedTouches[0].clientX - touch.x, dy = e.changedTouches[0].clientY - touch.y;
-  const zoomed = (window.visualViewport?.scale || 1) > 1.02;
-  if (!zoomed && Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.6 && Date.now() - touch.t < 700) {
-    suppressClick = Date.now();
-    const forward = prefs.dir === "rtl" ? dx > 0 : dx < 0;
-    step(forward ? 1 : -1);
-  }
-  touch = null;
-}, { passive: true });
+let suppressClick = 0, downX = 0, downY = 0;
+rb.addEventListener("pointerdown", e => { downX = e.clientX; downY = e.clientY; });
+rb.addEventListener("pointerup", e => { if (Math.abs(e.clientX - downX) > 10 || Math.abs(e.clientY - downY) > 10) suppressClick = Date.now(); });
 
 rb.addEventListener("click", e => {
   if (!R) return;
   const b = e.target.closest("[data-r]");
   if (b) { if (b.dataset.r === "next") goChapter(1); else closeReader(); return; }
-  if (Date.now() - suppressClick < 400) return;
+  if (Date.now() - suppressClick < 300) return;
   if (!$("#r-settings").hidden) { $("#r-settings").hidden = true; return; }
   if (prefs.mode === "list") { reader.classList.toggle("ui-off"); return; }
-  if (R.atEnd) return;
+  if (R.atEnd) { reader.classList.remove("ui-off"); return; }
   const x = e.clientX / rb.clientWidth;
-  if (x < 0.33) step(prefs.dir === "rtl" ? 1 : -1);
-  else if (x > 0.67) step(prefs.dir === "rtl" ? -1 : 1);
+  if (x < 0.2) step(prefs.dir === "rtl" ? 1 : -1);
+  else if (x > 0.8) step(prefs.dir === "rtl" ? -1 : 1);
   else reader.classList.toggle("ui-off");
 });
 
@@ -1286,7 +1309,7 @@ $("#r-pgsel").addEventListener("change", e => jump(+e.target.value));
 function jump(i) {
   if (!R) return;
   if (prefs.mode === "list") { rb.scrollTop = R.frames[i].offsetTop - 4; R.page = i; updateUi(); saveProgress(); }
-  else showSpread(R.spreadOf[i]);
+  else goSlide(R.spreadOf[i]);
 }
 $("#r-chsel").addEventListener("change", e => openReader(e.target.value, 0));
 $("#r-prev").onclick = () => goChapter(-1);
@@ -1309,8 +1332,8 @@ $("#r-settings").addEventListener("click", e => {
   if (prefs[key] === b.dataset.v) return;
   prefs[key] = b.dataset.v; savePrefs(); syncSettings();
   if (["mode", "gap", "double", "cover"].includes(key)) build();
-  else if (key === "dir" && prefs.mode === "list" && R.double) build();
-  else if (prefs.mode === "page" && !R.atEnd) showSpread(R.sp);
+  else if (key === "dir") build();
+  else if (key === "fit" && prefs.mode === "page") { const k = R.sp; sizeAll(); goSlide(k, false); }
 });
 
 document.addEventListener("keydown", e => {
