@@ -1,4 +1,4 @@
-const CACHE = "scaffale-0f86d60f83";
+const CACHE = "scaffale-121a1808c3";
 const SHELL = ["./", "./index.html", "./jszip.min.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
